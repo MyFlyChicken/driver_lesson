@@ -1,0 +1,23 @@
+# 忽略对象文件
+*.o
+*.ko
+
+# 忽略可执行文件
+my_program   # 替换为你的可执行文件名
+*.out
+
+# 忽略临时文件
+*.tmp
+*.temp
+*.mod
+*.order
+*.symvers
+*.cmd
+*.mod.c
+
+# 忽略依赖文件
+*.d
+
+# 忽略文件夹
+build/
+.vscode/
