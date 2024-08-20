@@ -1,5 +1,5 @@
 #如果没有值则赋值 “?=” 如果没有值则赋值
-ARCH ?= x86
+ARCH ?= arm64
 
 PROJECT := app.out
 
