@@ -1,16 +1,17 @@
-ARCH = arm64
+#如果没有值则赋值 “?=” 如果没有值则赋值
+ARCH ?= x86
 
-CFLAGS = -Wall -g           # 编译选项
-TARGET = app         		# 可执行文件名
-SRCS = app.c 				# 源文件
-OBJS = $(SRCS:.c=.o)        # 目标文件
+PROJECT := app.out
 
-pwd = $(shell pwd) 
+pwd = $(shell pwd)
 
-all:
+C_SRCS += \
+	app.c 
+
+all:$(PROJECT)
 # 链接可执行文件
-$(TARGET): $(OBJS)
-	$(CC) -o $@ $^
+$(PROJECT):$(OBJ) 
+	$(CC) -o  $@ $^ $(C_SRCS)
 
 # 编译源文件
 %.o: %.c
@@ -18,3 +19,4 @@ $(TARGET): $(OBJS)
 
 clean:
 	rm -f $(OBJS) $(TARGET)
+
