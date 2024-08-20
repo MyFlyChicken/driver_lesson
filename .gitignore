@@ -20,4 +20,3 @@ my_program   # 替换为你的可执行文件名
 
 # 忽略文件夹
 build/
-.vscode/
