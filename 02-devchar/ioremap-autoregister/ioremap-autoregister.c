@@ -1,4 +1,3 @@
-
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/fs.h>
@@ -27,8 +26,8 @@
 
 struct LED1_K_ADDR
 {
-    int* led1_modr;
-    int* led1_odr;
+    int* led1_ddr;
+    int* led1_dr;
     int* led1_rcc;
     int* led1_iomux;
     int* led1_iop;
@@ -108,11 +107,11 @@ xxx_sample_chardev_write(struct file* file, const char __user* usrbuf, size_t si
     if (kernel_buf[0] == '1') {
         //输出高电平：
         printk("111111111111\n");
-        *my_chrdev.maping_addr.led1_odr |= (0x1 << 4);
+        *my_chrdev.maping_addr.led1_dr = 0x00100010;
     }
     else {
         //输出低电平
-        *my_chrdev.maping_addr.led1_odr &= (~(0x1 << 4));
+        *my_chrdev.maping_addr.led1_dr = 0x00100000;
     }
 
     printk("内核中的xxx_sample_chardev_write执行了kf[0] = %s\n", kernel_buf);
@@ -143,8 +142,12 @@ int xxx_sample_chardev_open(struct inode* inode, struct file* file)
         printk("MODR失败\n");
         return -EIO;
     }
-    //初始化GPIO1A4为IO模式：
-    *my_chrdev.maping_addr.led1_iomux &= ~0x7;
+    // 初始化GPIO1A4为IO模式：
+    /* 如果想要写入寄存器，则需要对应的写使能位为1
+        bit31:16为写使能位，
+        bit2:0 模式选择
+     */
+    *my_chrdev.maping_addr.led1_iomux = 0x00070000;
 
     my_chrdev.maping_addr.led1_iop = ioremap(GPIO1_A4_P, 4);
     if (my_chrdev.maping_addr.led1_iop == NULL) {
@@ -152,24 +155,26 @@ int xxx_sample_chardev_open(struct inode* inode, struct file* file)
         return -EIO;
     }
     //初始化GPIO1A4为上拉模式：
-    *my_chrdev.maping_addr.led1_iop &= (~(0x3 << 8));
-    *my_chrdev.maping_addr.led1_iop |= (1 << 8);
+    /* 如果想要写入寄存器，则需要对应的写使能位为1
+        bit31:16为写使能位，
+        bit9:8为上下拉模式选择 */
+    *my_chrdev.maping_addr.led1_iop = 0x03000100;
 
-    my_chrdev.maping_addr.led1_modr = ioremap(GPIO1_A4_IOMUX, 4);
-    if (my_chrdev.maping_addr.led1_modr == NULL) {
+    my_chrdev.maping_addr.led1_ddr = ioremap(GPIOE_MODR, 4);
+    if (my_chrdev.maping_addr.led1_ddr == NULL) {
         printk("MODR失败\n");
         return -EIO;
     }
     //初始化输出模式：
-    *my_chrdev.maping_addr.led1_modr |= (0x1 << 4);
+    *my_chrdev.maping_addr.led1_ddr = 0x00100010;
 
-    my_chrdev.maping_addr.led1_odr = ioremap(GPIOE_ODR, 4);
-    if (my_chrdev.maping_addr.led1_odr == NULL) {
+    my_chrdev.maping_addr.led1_dr = ioremap(GPIOE_ODR, 4);
+    if (my_chrdev.maping_addr.led1_dr == NULL) {
         printk("ODR失败\n");
         return -EIO;
     }
     //输出低电平
-    *my_chrdev.maping_addr.led1_odr &= (~(0x1 << 4));
+    *my_chrdev.maping_addr.led1_dr = 0x00100010;
 
     return 0;
 }
@@ -184,7 +189,7 @@ int xxx_sample_chardev_open(struct inode* inode, struct file* file)
 int xxx_sample_chardev_release(struct inode* inode, struct file* file)
 {
     printk("内核中的xxx_sample_chardev_release执行了\n");
-    *my_chrdev.maping_addr.led1_odr &= (~(0x1 << 4));
+    *my_chrdev.maping_addr.led1_dr = 0x00100010;
     return 0;
 }
 /************* 3.驱动入口/出口函数定义 ***********/
@@ -231,8 +236,8 @@ void __exit my_test_module_exit(void)
 {
     printk("出口函数执行了\n"); //把调试信息放在了系统日志缓冲区，使用dmesg来显示。
     //清理资源。
-    iounmap(my_chrdev.maping_addr.led1_modr);
-    iounmap(my_chrdev.maping_addr.led1_odr);
+    iounmap(my_chrdev.maping_addr.led1_ddr);
+    iounmap(my_chrdev.maping_addr.led1_dr);
     //iounmap(my_chrdev.maping_addr.led1_rcc);
     //先销毁设备，再销毁设备类：
     device_destroy(my_chrdev.mydev_class, MKDEV(my_chrdev.major, 0));
