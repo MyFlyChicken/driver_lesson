@@ -10,7 +10,7 @@
 
 int main(int argc, char const* argv[])
 {
-    int fd = open("/dev/xxx_sample_chardev", O_RDWR);
+    int fd = open("/dev/devchar", O_RDWR);
     if (fd == -1) {
         perror("open err");
         return -1;
