@@ -21,6 +21,11 @@ int main(int argc, char const* argv[])
         perror("open err:");
         return -1;
     }
+    int fd3 = open("/dev/devchar", O_RDWR);
+    if (fd3 == -1) {
+        perror("open err");
+        return -1;
+    }
     int                  nbyts     = 0;
     char                 buf[128]  = {0};
     struct input_absinfo mouseInfo = {0};
@@ -31,9 +36,11 @@ int main(int argc, char const* argv[])
     //2.把我们关心fd放入到集合中：
     FD_SET(fd1, &save_fd_set);
     FD_SET(fd2, &save_fd_set);
+    FD_SET(fd3, &save_fd_set);
 
     //3.确定监控fd集合的边界：
     int maxfd = fd1 > fd2 ? fd1 : fd2;
+    maxfd     = maxfd > fd3 ? maxfd : fd3;
     while (true) {
         modify_fd_set = save_fd_set;
         int fds       = select(maxfd + 1, &modify_fd_set, NULL, NULL, NULL);
@@ -62,10 +69,21 @@ int main(int argc, char const* argv[])
                     }
                     printf("读取mouse设备,数据为=%d\n", mouseInfo.value);
                 }
+
+                if (eventfd == fd3) {
+                    memset(buf, 0, sizeof(buf));
+                    nbytes = read(eventfd, buf, sizeof(buf) - 1);
+                    if (nbytes == -1) {
+                        perror("read err:");
+                        return -1;
+                    }
+                    printf("读取的数据=%s\n", buf);
+                }
             }
         }
     }
     close(fd1);
     close(fd2);
+    close(fd3);
     return 0;
 }

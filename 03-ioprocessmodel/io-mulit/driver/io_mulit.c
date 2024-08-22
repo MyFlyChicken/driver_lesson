@@ -7,6 +7,7 @@
 #include <linux/cdev.h>
 #include <linux/slab.h>
 #include <linux/wait.h>
+#include <linux/poll.h>
 
 #define MYDEV_NAME "devchar"
 
@@ -39,7 +40,6 @@ struct LED1_K_ADDR
 struct xxx_sample_chardev
 {
     struct cdev* c_dev;
-
     //在设备类型描述内核的映射地址：
     struct LED1_K_ADDR maping_addr;
     //添加设备类，设备属性：
@@ -81,6 +81,7 @@ xxx_sample_chardev_read(struct file* file, char __user* userbuf, size_t size, lo
             ret = copy_to_user(userbuf, kernel_buf + *offset, size);
             if (ret) {
                 printk("copy_to_user failed");
+                my_chrdev.condition = 0;
                 return -EIO;
             }
             my_chrdev.condition = 0;
@@ -214,6 +215,22 @@ int xxx_sample_chardev_release(struct inode* inode, struct file* file)
     *my_chrdev.maping_addr.led1_dr = 0x00100010;
     return 0;
 }
+
+//这就回调函数就是IO多路复用机制中进行回调的调函数。
+unsigned int xxx_sample_chardev_poll(struct file* file, struct poll_table_struct* table)
+{
+    int mask = 0;
+    //1.把fd指定的设备中的等待队列挂载到wait列表。
+    poll_wait(file, &my_chrdev.wait_queue, table);
+    //2.如果条件满足，置位相位相应标记掩码mask:
+    //POLL_IN 只读事件产生的code, POLL_OUT只写事件， POLL_ERR错误事件，...
+    if (my_chrdev.condition == 1) {
+        return mask | POLL_IN;
+    }
+
+    return mask;
+}
+
 /************* 3.驱动入口/出口函数定义 ***********/
 int __init my_test_module_init(void)
 {
@@ -222,6 +239,7 @@ int __init my_test_module_init(void)
     static struct file_operations fops = {.open    = xxx_sample_chardev_open,
                                           .read    = xxx_sample_chardev_read,
                                           .write   = xxx_sample_chardev_write,
+                                          .poll    = xxx_sample_chardev_poll,
                                           .release = xxx_sample_chardev_release};
 
     printk("A模块的入口函数执行了");

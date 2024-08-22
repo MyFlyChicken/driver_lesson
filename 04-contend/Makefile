@@ -8,4 +8,4 @@ all:
 clean:
 	make -C $(kernel_dir) clean M=$(pwd)
 
-obj-m += content.o 
+obj-m += contend.o 

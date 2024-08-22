@@ -4,24 +4,20 @@
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/device.h>
+#include <linux/cdev.h>
+#include <linux/slab.h>
+#include <linux/wait.h>
+#include <linux/poll.h>
+#include <linux/sched.h>
+#include <linux/semaphore.h>
 
 #define MYDEV_NAME "devchar"
 
 #define CONTENT_SPIN_LOCK 0
-#define CONTENT_SENP      1
+#define CONTENT_SEMP      1
 #define CONTENT_MUTEX     2
 
-#define CONTENT_DEFAULT CONTENT_SPIN_LOCK
-
-#if (CONTENT_DEFAULT == CONTENT_SPIN_LOCK)
-
-#elif (CONTENT_DEFAULT == CONTENT_SENP)
-
-#elif (CONTENT_DEFAULT == CONTENT_MUTEX)
-
-#else
-#error "CONTENT_DEFAULT is unvalid"
-#endif
+#define CONTENT_DEFAULT CONTENT_MUTEX
 
 /************* 1.描述一个字符设备：应该有哪些属性 ***********/
 
@@ -51,15 +47,26 @@ struct LED1_K_ADDR
 
 struct xxx_sample_chardev
 {
-    const char*            dev_name;
-    int                    major;
-    int                    minor;
-    struct file_operations fops;
+    struct cdev* c_dev;
     //在设备类型描述内核的映射地址：
     struct LED1_K_ADDR maping_addr;
     //添加设备类，设备属性：
     struct class*  mydev_class;
     struct device* mydev;
+    //等待队列的属性：
+    wait_queue_head_t wait_queue;
+    u8                condition;
+#if (CONTENT_DEFAULT == CONTENT_SPIN_LOCK)
+    spinlock_t lock;
+    u8         status;
+#elif (CONTENT_DEFAULT == CONTENT_SEMP)
+    //添加同步机制信号量：
+    struct semaphore sem;
+#elif (CONTENT_DEFAULT == CONTENT_MUTEX)
+    struct mutex mtx;
+#else
+#error "CONTENT_DEFAULT is unvalid"
+#endif
 };
 /* 在全局中定义的 xxx_sample_charde的对象 */
 struct xxx_sample_chardev my_chrdev;
@@ -81,8 +88,29 @@ xxx_sample_chardev_read(struct file* file, char __user* userbuf, size_t size, lo
 {
     //调用copy_to_user从用户进程中获取数据：
     int ret = 0;
-    //最后在内核对用户传过来的长度进行过滤。避免操作非法内存。
-    //对内核中的内存使用要十分慎重，很容易造成内核的崩溃。
+
+    if (file->f_flags & O_NONBLOCK) {
+        if (my_chrdev.condition == 0) {
+            return -EAGAIN;
+        }
+        else {
+            if (size >= sizeof(kernel_buf)) {
+                size = sizeof(userbuf);
+            }
+            ret = copy_to_user(userbuf, kernel_buf + *offset, size);
+            if (ret) {
+                printk("copy_to_user failed");
+                my_chrdev.condition = 0;
+                return -EIO;
+            }
+            my_chrdev.condition = 0;
+            printk("内核中的xxx_sample_chardev_read执行了1\n");
+            return size;
+        }
+    }
+
+    wait_event_interruptible(my_chrdev.wait_queue, my_chrdev.condition);
+    my_chrdev.condition = 0;
     if (size >= sizeof(kernel_buf)) {
         size = sizeof(userbuf);
     }
@@ -131,6 +159,10 @@ xxx_sample_chardev_write(struct file* file, const char __user* usrbuf, size_t si
     }
 
     printk("内核中的xxx_sample_chardev_write执行了kf[0] = %s\n", kernel_buf);
+
+    my_chrdev.condition = 1;
+    wake_up(&my_chrdev.wait_queue);
+
     return size;
 }
 
@@ -144,15 +176,28 @@ xxx_sample_chardev_write(struct file* file, const char __user* usrbuf, size_t si
  */
 int xxx_sample_chardev_open(struct inode* inode, struct file* file)
 {
+    int ret;
+
     printk("内核中的xxx_sample_chardev_open执行了\n");
-    //tspi 时钟默认开启 不再开启
-    // my_chrdev.maping_addr.led1_rcc = ioremap(RCC_MP_AHB4_EN, 4);
-    // if (my_chrdev.maping_addr.led1_rcc == NULL) {
-    //     printk("RCC失败\n");
-    //     return -EIO;
-    // }
-    // *my_chrdev.maping_addr.led1_rcc |= 0x1 << 4;
-    //映射 + 初始化：
+
+#if (CONTENT_DEFAULT == CONTENT_SPIN_LOCK)
+    my_chrdev.status = 1;
+    spin_unlock(&my_chrdev.lock);
+    printk("当前获取自旋锁的进程为 = %d\n", current->pid);
+#elif (CONTENT_DEFAULT == CONTENT_SEMP)
+    ret = down_trylock(&my_chrdev.sem);
+    if (ret) {
+        return -EBUSY;
+    }
+    printk("当前获取信号量的进程为 = %d\n", current->pid);
+#elif (CONTENT_DEFAULT == CONTENT_MUTEX)
+    ret = mutex_trylock(&my_chrdev.mtx);
+    if (ret == 0) {
+        return -EBUSY;
+    }
+    printk("当前获取互斥量的进程为 = %d\n", current->pid);
+#endif
+
     my_chrdev.maping_addr.led1_iomux = ioremap(GPIO1_A4_IOMUX, 4);
     if (my_chrdev.maping_addr.led1_iomux == NULL) {
         printk("MODR失败\n");
@@ -207,58 +252,95 @@ int xxx_sample_chardev_release(struct inode* inode, struct file* file)
     printk("内核中的xxx_sample_chardev_release执行了\n");
     *my_chrdev.maping_addr.led1_dr = 0x00100010;
 #if (CONTENT_DEFAULT == CONTENT_SPIN_LOCK)
-
-#elif (CONTENT_DEFAULT == CONTENT_SENP)
-
+    my_chrdev.status = 0;
+    spin_unlock(&my_chrdev.lock);
+#elif (CONTENT_DEFAULT == CONTENT_SEMP)
+    up(&my_chrdev.sem);
 #elif (CONTENT_DEFAULT == CONTENT_MUTEX)
-
+    mutex_unlock(&my_chrdev.mtx);
 #else
 #error "CONTENT_DEFAULT is unvalid"
 #endif
     return 0;
 }
+
+//这就回调函数就是IO多路复用机制中进行回调的调函数。
+unsigned int xxx_sample_chardev_poll(struct file* file, struct poll_table_struct* table)
+{
+    int mask = 0;
+    //1.把fd指定的设备中的等待队列挂载到wait列表。
+    poll_wait(file, &my_chrdev.wait_queue, table);
+    //2.如果条件满足，置位相位相应标记掩码mask:
+    //POLL_IN 只读事件产生的code, POLL_OUT只写事件， POLL_ERR错误事件，...
+    if (my_chrdev.condition == 1) {
+        return mask | POLL_IN;
+    }
+
+    return mask;
+}
+
 /************* 3.驱动入口/出口函数定义 ***********/
 int __init my_test_module_init(void)
 {
-    printk("A模块的入口函数执行了");
-    //申请资源，初始化并配置资源。
-    //2.初始化对象（对这个设备对象中的属性进行初始化）
-    //2.1设备的名字：
-    my_chrdev.dev_name = MYDEV_NAME;
-    //2.2设备操作时的回调方法：
-    my_chrdev.fops.open    = xxx_sample_chardev_open;
-    my_chrdev.fops.read    = xxx_sample_chardev_read;
-    my_chrdev.fops.write   = xxx_sample_chardev_write;
-    my_chrdev.fops.release = xxx_sample_chardev_release;
-    //2.3 申请内核中的设备号：申请主设备号，并且关联对此设备的操作方法：
-    my_chrdev.major = register_chrdev(0, MYDEV_NAME, &my_chrdev.fops);
-    if (my_chrdev.major < 0) {
-        printk("申请设备号失败，及关联操作方法失败\n");
-        return my_chrdev.major;
-    }
-    printk("申请到的设备号=%d\n", my_chrdev.major);
+    int ret = 0;
 
-    //申请设备类：
+    static struct file_operations fops = {.open    = xxx_sample_chardev_open,
+                                          .read    = xxx_sample_chardev_read,
+                                          .write   = xxx_sample_chardev_write,
+                                          .poll    = xxx_sample_chardev_poll,
+                                          .release = xxx_sample_chardev_release};
+
+    printk("A模块的入口函数执行了");
+    //1.申请cdev
+    my_chrdev.c_dev = cdev_alloc();
+    if (NULL == my_chrdev.c_dev) {
+        printk("cdev_alloc err\n");
+        return -ENOMEM;
+    }
+    //2.cdev初始化
+    cdev_init(my_chrdev.c_dev, &fops);
+    //3.申请设备号
+    ret = alloc_chrdev_region(&my_chrdev.c_dev->dev, 0, 1, MYDEV_NAME);
+    if (ret) {
+        printk("alloc_chrdev_region err\n");
+        return ret;
+    }
+    printk("申请到的主设备号 = %d\n", MAJOR(my_chrdev.c_dev->dev));
+    //4.把cdev对象添加到内核设备链表中：
+    ret = cdev_add(my_chrdev.c_dev, my_chrdev.c_dev->dev, 1);
+    if (ret) {
+        printk("cdev_add error\n");
+        return ret;
+    }
+
+    //5.申请设备类：
     my_chrdev.mydev_class = class_create(THIS_MODULE, "MYLED");
     if (IS_ERR(my_chrdev.mydev_class)) {
         printk("class_create失败\n");
         return PTR_ERR(my_chrdev.mydev_class);
     }
 
-    //申请设备对象：向上提交uevent事件：建立了设备节点与设备号之间的关系。
+    printk("dev is %s", MYDEV_NAME);
+
+    //6.申请设备对象：向上提交uevent事件：建立了设备节点与设备号之间的关系。
     my_chrdev.mydev =
-        device_create(my_chrdev.mydev_class, NULL, MKDEV(my_chrdev.major, 0), NULL, MYDEV_NAME);
+        device_create(my_chrdev.mydev_class, NULL, my_chrdev.c_dev->dev, NULL, MYDEV_NAME);
     if (IS_ERR(my_chrdev.mydev)) {
         printk("device_create失败\n");
         return PTR_ERR(my_chrdev.mydev);
     }
+
+    //7.初始化等待队列头
+    init_waitqueue_head(&my_chrdev.wait_queue);
+    my_chrdev.condition = 0;
     printk("dev is %s", MYDEV_NAME);
 #if (CONTENT_DEFAULT == CONTENT_SPIN_LOCK)
-
-#elif (CONTENT_DEFAULT == CONTENT_SENP)
-
+    spin_lock_init(&my_chrdev.lock);
+    my_chrdev.status = 0;
+#elif (CONTENT_DEFAULT == CONTENT_SEMP)
+    sema_init(&my_chrdev.sem, 1)
 #elif (CONTENT_DEFAULT == CONTENT_MUTEX)
-
+    mutex_init(&my_chrdev.mtx);
 #else
 #error "CONTENT_DEFAULT is unvalid"
 #endif
@@ -269,14 +351,17 @@ int __init my_test_module_init(void)
 void __exit my_test_module_exit(void)
 {
     printk("出口函数执行了\n"); //把调试信息放在了系统日志缓冲区，使用dmesg来显示。
-    //清理资源。
+    //先销毁设备，再销毁设备类：
+    device_destroy(my_chrdev.mydev_class, my_chrdev.c_dev->dev);
+    class_destroy(my_chrdev.mydev_class);
+    cdev_del(my_chrdev.c_dev); //从内核中移除cdev，但是资源依然被占用
+    unregister_chrdev_region(my_chrdev.c_dev->dev, 1);
+    kfree(my_chrdev.c_dev);
+
     iounmap(my_chrdev.maping_addr.led1_ddr);
     iounmap(my_chrdev.maping_addr.led1_dr);
-    //iounmap(my_chrdev.maping_addr.led1_rcc);
-    //先销毁设备，再销毁设备类：
-    device_destroy(my_chrdev.mydev_class, MKDEV(my_chrdev.major, 0));
-    class_destroy(my_chrdev.mydev_class);
-    unregister_chrdev(my_chrdev.major, MYDEV_NAME);
+    iounmap(my_chrdev.maping_addr.led1_iomux);
+    iounmap(my_chrdev.maping_addr.led1_iop);
 }
 
 /************* 4.指定模块相关内容 ***********/

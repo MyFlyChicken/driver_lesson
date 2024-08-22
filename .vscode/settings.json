@@ -4,4 +4,7 @@
     "clang-format.language.c.enable": true,
     "clang-format.assumeFilename": "${workspaceFolder/.clang-format}",
     "editor.formatOnSave": true,
+    "files.associations": {
+        "init.h": "c"
+    },
 }
