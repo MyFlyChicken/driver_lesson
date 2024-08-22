@@ -6,20 +6,16 @@
 #include <string.h>
 #include <stdbool.h>
 #include <sys/ioctl.h>
-#include "ioctl_app.h"
 
 int main(int argc, char const* argv[])
 {
-    int fd = open("/dev/xxx_sample_chardev", O_RDWR);
+    int fd = open("/dev/devchar", O_RDWR);
     if (fd == -1) {
         perror("open err");
         return -1;
     }
-    char            buf[128] = {0};
-    int             ret      = 0;
-    int             nbytes   = 0;
-    enum LED_STATUS status;
-
+    char buf[128] = {0};
+    int  nbytes   = 0;
     while (true) {
         printf("请输入：\n");
         fgets(buf, sizeof(buf), stdin);

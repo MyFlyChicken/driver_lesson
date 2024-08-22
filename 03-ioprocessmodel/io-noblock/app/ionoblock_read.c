@@ -9,7 +9,7 @@
 
 int main(int argc, char const* argv[])
 {
-    int fd = open("/dev/xxx_sample_chardev", O_RDWR);
+    int fd = open("/dev/devchar", O_RDWR | O_NONBLOCK);
     if (fd == -1) {
         perror("open err");
         return -1;
@@ -17,16 +17,16 @@ int main(int argc, char const* argv[])
     char buf[128] = {0};
     int  nbytes   = 0;
     while (true) {
-        printf("请输入：\n");
-        fgets(buf, sizeof(buf), stdin);
-        nbytes = write(fd, buf, strlen(buf));
+        memset(buf, 0, sizeof(buf));
+        printf("开始读取\n");
+        sleep(1);
+        nbytes = read(fd, buf, sizeof(buf) - 1);
         if (nbytes == -1) {
-            perror("write err:");
-            return -1;
+            perror("read err:");
+            continue;
         }
+        printf("读取的数据=%s\n", buf);
     }
-
     close(fd);
-
     return 0;
 }
