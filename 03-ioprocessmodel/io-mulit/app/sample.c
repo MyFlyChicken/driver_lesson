@@ -9,9 +9,15 @@
 #include <sys/select.h>
 #include <linux/input.h>
 
+//TODO 待测，tspi没有设备支持 /dev/tty /dev/input/mouse0
 int main(int argc, char const* argv[])
 {
+    int                  nbyts     = 0;
+    char                 buf[128]  = {0};
+    struct input_absinfo mouseInfo = {0};
+
     int fd1 = open("/dev/tty", O_RDWR);
+
     if (fd1 == -1) {
         perror("open err");
         return -1;
@@ -26,9 +32,7 @@ int main(int argc, char const* argv[])
         perror("open err");
         return -1;
     }
-    int                  nbyts     = 0;
-    char                 buf[128]  = {0};
-    struct input_absinfo mouseInfo = {0};
+
     //1.创建fd的集合（select中使用一个bitmap位域图）
     fd_set save_fd_set, modify_fd_set;
     //对集合进行清0：
@@ -72,8 +76,8 @@ int main(int argc, char const* argv[])
 
                 if (eventfd == fd3) {
                     memset(buf, 0, sizeof(buf));
-                    nbytes = read(eventfd, buf, sizeof(buf) - 1);
-                    if (nbytes == -1) {
+                    nbyts = read(eventfd, buf, sizeof(buf) - 1);
+                    if (nbyts == -1) {
                         perror("read err:");
                         return -1;
                     }

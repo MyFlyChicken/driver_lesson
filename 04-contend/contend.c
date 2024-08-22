@@ -1,3 +1,6 @@
+/**
+ * TODO 加载模块后，无法卸载模块，具体原因需要研究
+ */
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/fs.h>
@@ -17,7 +20,7 @@
 #define CONTENT_SEMP      1
 #define CONTENT_MUTEX     2
 
-#define CONTENT_DEFAULT CONTENT_MUTEX
+#define CONTENT_DEFAULT CONTENT_SPIN_LOCK
 
 /************* 1.描述一个字符设备：应该有哪些属性 ***********/
 
@@ -181,6 +184,12 @@ int xxx_sample_chardev_open(struct inode* inode, struct file* file)
     printk("内核中的xxx_sample_chardev_open执行了\n");
 
 #if (CONTENT_DEFAULT == CONTENT_SPIN_LOCK)
+    (void)ret;
+    spin_lock(&my_chrdev.lock);
+    if (my_chrdev.status != 0) {
+        spin_unlock(&my_chrdev.lock);
+        return -EBUSY;
+    }
     my_chrdev.status = 1;
     spin_unlock(&my_chrdev.lock);
     printk("当前获取自旋锁的进程为 = %d\n", current->pid);
@@ -338,7 +347,7 @@ int __init my_test_module_init(void)
     spin_lock_init(&my_chrdev.lock);
     my_chrdev.status = 0;
 #elif (CONTENT_DEFAULT == CONTENT_SEMP)
-    sema_init(&my_chrdev.sem, 1)
+    sema_init(&my_chrdev.sem, 1);
 #elif (CONTENT_DEFAULT == CONTENT_MUTEX)
     mutex_init(&my_chrdev.mtx);
 #else
