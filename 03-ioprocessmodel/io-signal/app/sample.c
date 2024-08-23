@@ -1,6 +1,4 @@
-/**
- * TODO 等待实现
- */
+// TODO 等待实现
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -12,6 +10,7 @@
 #include <sys/select.h>
 #include <linux/input.h>
 #include <sys/signal.h>
+
 int xxx_saple_dev_fd = 0;
 
 // 信号的回调函数：
@@ -30,7 +29,7 @@ void sig_callback(int sig)
 
 int main(int argc, char const* argv[])
 {
-    xxx_saple_dev_fd = open("/dev/xxx_sample_chardev", O_RDWR);
+    xxx_saple_dev_fd = open("/dev/devchar", O_RDWR);
     // fd1 = open("/dev/input/mouse0", O_RDWR);
     if (xxx_saple_dev_fd == -1) {
         perror("open err");
