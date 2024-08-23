@@ -1,6 +1,4 @@
-/**
- * TODO 加载模块后，无法卸载模块，具体原因需要研究
- */
+// TODO 加载模块后，无法卸载模块，具体原因需要研究
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/fs.h>
