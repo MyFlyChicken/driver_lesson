@@ -9,7 +9,7 @@
 
 int main(int argc, char const* argv[])
 {
-    int fd = open("/dev/yyf,device02", O_RDWR);
+    int fd = open("/dev/yyf,device01", O_RDWR);
     if (fd == -1) {
         perror("open err");
         return -1;

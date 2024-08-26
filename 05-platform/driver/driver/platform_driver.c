@@ -217,7 +217,7 @@ struct file_operations fops = {
 
 int my_dev_driver_probe(struct platform_device* pdev)
 {
-    printk("哦恭喜，匹配上了\n");
+    printk("恭喜，匹配上了\n");
 
     /* 申请并初始化 */
     my_chrdev.c_dev = cdev_alloc();
@@ -230,6 +230,10 @@ int my_dev_driver_probe(struct platform_device* pdev)
     /* 设备自动创建 */
     my_chrdev.class = class_create(THIS_MODULE, "mychr");
     my_chrdev.dev   = device_create(my_chrdev.class, NULL, my_chrdev.c_dev->dev, NULL, pdev->name);
+
+    /* 初始化等待队列头 */
+    init_waitqueue_head(&my_chrdev.wait_queue);
+    my_chrdev.condition = 0;
 
     /* 提取资源文件，用于操作设备 */
     my_chrdev.chr_map.led1_iomux = ioremap(pdev->resource[0].start, 4);
@@ -281,10 +285,10 @@ struct platform_device_id id_table_match[] = {
 /* 名字匹配 */
 struct platform_driver my_platform_driver = {
     .probe  = my_dev_driver_probe,
-    .remove = my_dev_driver_probe,
+    .remove = my_dev_driver_probe_remove,
     .driver =
         {
-                 .name = "yyf,device01",
+                 .name = "yyf,device_driver",
                  },
     .id_table = id_table_match,
 };

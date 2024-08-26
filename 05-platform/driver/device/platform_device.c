@@ -16,6 +16,11 @@
 #define GPIOE_MODR           (GPIO1_BASE + GPIO1_A4_MODR_OFFSET) //模式选择 输入/输出
 #define GPIOE_ODR            (GPIO1_BASE + GPIO1_A4_ODR_OFFSET)  //输出控制
 
+/**
+ * 查找不同类型时，不同类型的索引不进行累加
+ * 如IORESOURCE_MEM，第二个为ioddr
+ * IORESOURCE_IRQ，第一个为iodr
+ */
 struct resource my_device_001_res[] = {
     [0] =
         {
