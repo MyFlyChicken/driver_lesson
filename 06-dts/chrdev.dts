@@ -1,0 +1,31 @@
+/dts-v1/;
+//设备树根节点：可以理解为系统总线：
+/{
+    myled1{
+        model = "this is a led1 desc";
+        //用来与驱动进行匹配的
+        compatible = "WX,my_device_01";
+        //设备节点中信息的描述，使用键值对的方式：
+        dev_type = "LED";
+        rcc_e = <0x50000a28 0x4>;
+        gpioe_modr = <0x50006000 0x4>;
+        gpioe_odr = <0x50006014 0x4>;
+        binary-data = [12 34 56];
+        //status设置okay，表示启用此结点。
+        status = "okay";
+    };
+    myled2{
+
+    };
+};
+
+chrdev{
+		model = "this is yyf chrdev";
+		//用来与驱动进行匹配
+		compatible = "yyf,device01";
+		//设备节点中信息的描述，
+
+		chrdev_gpios = <&gpio3 RK_PB1 GPIO_ACTIVE_HIGH>,<&gpio3 RK_PB2 GPIO_ACTIVE_HIGH>,<&gpio0 RK_PB7 GPIO_ACTIVE_HIGH>;
+		//status设置，默认为"okay"
+		status = "okay";
+	};
