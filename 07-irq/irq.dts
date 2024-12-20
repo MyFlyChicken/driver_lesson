@@ -1,0 +1,18 @@
+keydev{
+		model = "this is yyf keydev";
+		//用来与驱动进行匹配
+		compatible = "yyf,deviceof_key";
+		//设备节点中信息的描述，
+		device-type = "KEY";
+		//一个空属性，声明一个节点为接收中断信号的设备
+		//!!!interrupt-controller;不能有这个，否则会造成匹配失败，似乎是因为interrupt-parent内已经有了interrupt-controller
+		//!!!或者是不能在interrupt-parent上边？
+		//指定中断控制器，表明该设备的中断由 gpio3 控制器管理
+		interrupt-parent = <&gpio3>;
+		//<引脚号，激活电平>第一个为gpio引脚号，第二个为中断激活电平
+		interrupts = <RK_PC3 IRQ_TYPE_LEVEL_LOW>, <RK_PB3 IRQ_TYPE_LEVEL_LOW>，<RK_PB4 IRQ_TYPE_LEVEL_LOW>;
+		//获取gpio资源 初始化为输入模式
+		keydev_gpios = <&gpio3 RK_PC3 GPIO_ACTIVE_HIGH>,<&gpio3 RK_PB3 GPIO_ACTIVE_HIGH>,<&gpio3 RK_PB4 GPIO_ACTIVE_HIGH>;
+		//status设置，默认为"okay"
+		status = "okay";
+	}
